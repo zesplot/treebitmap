@@ -144,6 +144,53 @@ impl<T: Sized> TreeBitmap<T> {
         }
     }
 
+    /// longest match lookup of ```nibbles```. Returns bits matched as u32, and mutable reference to T.
+    pub fn longest_match_mut(&mut self, nibbles: &[u8]) -> Option<(u32, &mut T)> {
+        let mut cur_hdl = self.root_handle();
+        let mut cur_index = 0;
+        let mut bits_matched = 0;
+        let mut bits_searched = 0;
+        let mut best_match: Option<(AllocatorHandle, u32)> = None; // result handle + index
+
+        for nibble in nibbles {
+            let cur_node = *self.trienodes.get(&cur_hdl, cur_index);
+            let match_mask = unsafe { *node::MATCH_MASKS.get_unchecked(*nibble as usize) };
+
+            if let MatchResult::Match(result_hdl, result_index, matching_bit_index) =
+                cur_node.match_internal(match_mask)
+            {
+                bits_matched = bits_searched;
+                unsafe {
+                    bits_matched += *node::BIT_MATCH.get_unchecked(matching_bit_index as usize);
+                }
+                best_match = Some((result_hdl, result_index));
+            }
+
+            if cur_node.is_endnode() {
+                break;
+            }
+            match cur_node.match_external(match_mask) {
+                MatchResult::Chase(child_hdl, child_index) => {
+                    bits_searched += 4;
+                    cur_hdl = child_hdl;
+                    cur_index = child_index;
+                    continue;
+                }
+                MatchResult::None => {
+                    break;
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        match best_match {
+            Some((result_hdl, result_index)) => {
+                Some((bits_matched, self.results.get_mut(&result_hdl, result_index)))
+            }
+            None => None,
+        }
+    }
+
     pub fn insert(&mut self, nibbles: &[u8], masklen: u32, value: T) -> Option<T> {
         let mut cur_hdl = self.root_handle();
         let mut cur_index = 0;

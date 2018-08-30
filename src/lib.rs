@@ -162,6 +162,15 @@ where
         }
     }
 
+    /// Mutable version of longest_match().
+
+    pub fn longest_match_mut(&mut self, ip: A) -> Option<(A, u32, &mut T)> {
+        match self.inner.longest_match_mut(&ip.nibbles().as_ref()) {
+            Some((bits_matched, value)) => Some((ip.mask(bits_matched), bits_matched, value)),
+            None => None,
+        }
+    }
+
     /// Returns iterator over prefixes and values.
     ///
     /// # Examples
